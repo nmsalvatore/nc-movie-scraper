@@ -1,8 +1,8 @@
-from .xhr import get_api_routes
+from .json_requests import get_json_requests
 
 
 def main():
-    onyx_routes = get_api_routes("https://www.theonyxtheatre.com/showtimes/")
+    onyx_routes = get_json_requests("https://www.theonyxtheatre.com/showtimes/")
 
     for route in onyx_routes:
         print(route)
