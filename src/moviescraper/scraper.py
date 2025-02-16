@@ -2,7 +2,8 @@ from .json_requests import get_json_requests
 
 
 def main():
-    onyx_routes = get_json_requests("https://www.theonyxtheatre.com/showtimes/")
+    onyx_endpoints = get_json_requests("https://www.theonyxtheatre.com/showtimes/")
+    prime_endpoints = get_json_requests("https://www.prime-cinemas.com/showtimes/")
 
-    for route in onyx_routes:
+    for route in onyx_endpoints + prime_endpoints:
         print(route)
