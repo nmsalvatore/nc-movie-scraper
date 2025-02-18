@@ -5,7 +5,13 @@ build-backend = "hatchling.build"
 [project]
 name = "ncmoviescraper"
 version = "0.1.0"
-dependencies = ["blinker==1.7.0", "selenium", "selenium-wire", "setuptools"]
+dependencies = [
+    "blinker==1.7.0",
+    "requests",
+    "selenium",
+    "selenium-wire",
+    "setuptools",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/moviescraper"]
