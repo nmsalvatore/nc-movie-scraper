@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
     "blinker==1.7.0",
     "python-dateutil",
+    "python-dotenv",
     "requests",
     "selenium",
     "selenium-wire",
