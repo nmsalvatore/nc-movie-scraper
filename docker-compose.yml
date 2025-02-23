@@ -1,0 +1,7 @@
+services:
+    scraper:
+        build: .
+        volumes:
+            - ./src:/app/src
+            - ./env:/app/env
+        user: mumble
