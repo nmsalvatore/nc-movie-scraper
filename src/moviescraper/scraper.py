@@ -1,20 +1,48 @@
 #!/usr/bin/env python3
 
+import os
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 
+from dateutil.relativedelta import relativedelta
+from dotenv import load_dotenv
 import requests
 from requests.exceptions import HTTPError
 
 from .json_requests import get_json_requests
 
 
+class TheaterConfig:
+    def __init__(self, base_url: str, website_id: str, theater_id: str, schedule_endpoint: str):
+        self.base_url = base_url
+        self.website_id = website_id
+        self.theater_id = theater_id
+        self.schedule_endpoint = schedule_endpoint
+
+    @classmethod
+    def from_env(cls, env_file: str) -> "TheaterConfig":
+        """Create config from environment file"""
+
+        load_dotenv(env_file)
+
+        required_vars = ["BASE_URL", "WEBSITE_ID", "THEATER_ID", "SCHEDULE_ENDPOINT"]
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+        if missing_vars:
+            raise ValueError(
+                f"Missing required environment variables from {env_file}: {", ".join(missing_vars)}"
+            )
+
+        return cls(
+            base_url=os.getenv("BASE_URL", ""),
+            website_id=os.getenv("WEBSITE_ID", ""),
+            theater_id=os.getenv("THEATER_ID", ""),
+            schedule_endpoint=os.getenv("SCHEDULE_ENDPOINT", "")
+        )
+
+
 class Scraper:
-    def __init__(self, url, config):
-        self.url = url
-        self.website_id = config.get("website_id")
-        self.theater_id = config.get("theater_id")
-        self.schedule_endpoint = config.get("schedule_endpoint")
+    def __init__(self, config: TheaterConfig):
+        self.config = config
         self.movie_data = self._fetch_movie_data()
         self.movie_nodes = self._get_movie_nodes()
         self.movie_ids = self._get_movie_ids()
@@ -25,7 +53,7 @@ class Scraper:
         Search the list of JSON requests for the 'allMovie' key
         """
 
-        for endpoint in get_json_requests(self.url):
+        for endpoint in get_json_requests(self.config.base_url):
             try:
                 response = requests.get(endpoint)
                 response.raise_for_status()
@@ -81,18 +109,16 @@ class Scraper:
         today_next_year = today + relativedelta(years=1)
 
         body = {
-            "theaters": [{"id": self.theater_id, "timeZone": "America/Los_Angeles"}],
+            "theaters": [{"id": self.config.theater_id, "timeZone": "America/Los_Angeles"}],
             "movieIds": self.movie_ids,
             "from": today.isoformat(),
             "to": today_next_year.isoformat(),
-            "websiteId": self.website_id,
+            "websiteId": self.config.website_id,
         }
 
-        response = requests.post(self.schedule_endpoint, json=body)
+        response = requests.post(self.config.schedule_endpoint, json=body)
         response.raise_for_status()
-
-        data = response.json()
-        schedule = data.get(self.theater_id, {}).get("schedule")
+        schedule = response.json().get(self.config.theater_id, {}).get("schedule")
 
         if schedule is None:
             raise ValueError(
@@ -106,13 +132,6 @@ class Scraper:
 
 
 def main():
-    onyx_scraper = Scraper(
-        "https://www.theonyxtheatre.com/showtimes/",
-        {
-            "theater_id": "X065X",
-            "website_id": "V2Vic2l0ZU1hbmFnZXJXZWJzaXRlOjhmNzhiNTE3LTlhZjUtNDEzZi04ZWU0LWVjYzNlNmI3NmI0Zg==",
-            "schedule_endpoint": "https://www.theonyxtheatre.com/api/gatsby-source-boxofficeapi/schedule"
-        }
-    )
-
+    onyx_config = TheaterConfig.from_env("env/onyx.env")
+    onyx_scraper = Scraper(onyx_config)
     onyx_scraper.print_movie_schedule()
