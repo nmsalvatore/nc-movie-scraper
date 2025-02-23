@@ -10,6 +10,8 @@ from seleniumwire import webdriver
 def get_json_requests(url: str) -> list[str]:
     """Retrieve all network requests ending in .json from a given URL"""
 
+    print(f"Compiling list of JSON requests at: {url}")
+
     driver = None
 
     try:
