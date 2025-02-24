@@ -3,12 +3,12 @@
 import os
 from datetime import datetime
 
+import dotenv
 import requests
-from dateutil.relativedelta import relativedelta
-from dotenv import load_dotenv
-from requests.exceptions import HTTPError, RequestException
+from dateutil import relativedelta as date_delta
+from requests import exceptions as req_exceptions
 
-from .json_requests import get_json_requests
+from . import browser
 
 
 class TheaterConfig:
@@ -72,7 +72,7 @@ class TheaterConfig:
             example_scraper = TheaterScraper(example_config)
         """
 
-        load_dotenv(env_file)
+        dotenv.load_dotenv(env_file)
 
         required_vars = [
             "SHOWTIMES_URL",
@@ -96,7 +96,7 @@ class TheaterConfig:
 
 
 class TheaterScraper:
-    """A web scraper for movie theater websites.
+    """A web scraper for Boxoffice CMS movie theater websites.
 
     The web scraper handles fetching and parsing of movie data
     from movie theater websites powered by Boxoffice CMS through their
@@ -116,7 +116,6 @@ class TheaterScraper:
     Example usage:
         example_config = TheaterConfig.from_env("env/example.env")
         example_scraper = TheaterScraper(example_config)
-        example_scraper.print_schedule()
     """
 
     def __init__(self, config: TheaterConfig):
@@ -124,16 +123,24 @@ class TheaterScraper:
         self.movie_data = self._fetch_movie_data()
         self.movie_nodes = self._get_movie_nodes()
         self.movie_ids = self._get_movie_ids()
-        self.movie_schedule = self._get_theater_schedule()
 
     def _fetch_movie_data(self) -> tuple[str, dict]:
-        """Search the list of JSON requests for the 'allMovie' key
+        """Find movie data from list of JSON requests.
+
+        Searches list of JSON requests for 'allMovie' key in response
+        data for each endpoint. If the key is found and key value is
+        not None, returns a tuple containing the endpoint and the
+        response data.
 
         Returns:
-            tuple: Tuple containing (endpoint, movie data)
+            (endpoint, movie_data): Tuple containing API endpoint containing
+                the 'allMovie' key and the data provided by the value
+                of the 'allMovie' key
         """
 
-        for endpoint in get_json_requests(self.theater_config.showtimes_url):
+        showtimes_url = self.theater_config.showtimes_url
+
+        for endpoint in browser.get_json_requests(showtimes_url):
             try:
                 response = requests.get(endpoint, timeout=30)
                 response.raise_for_status()
@@ -141,35 +148,42 @@ class TheaterScraper:
 
                 if "allMovie" in data and data.get("allMovie") is not None:
                     print(f"Successfully found movie data at: {endpoint}")
-                    return (endpoint, data)
 
-            except HTTPError as http_error:
-                raise HTTPError(f"Failed to fetch from {endpoint}: {http_error}")
+                    movie_data = data["allMovie"]
+                    return (endpoint, movie_data)
 
-            except RequestException as e:
-                raise RequestException(f"Request failed for {endpoint}: {e}")
+            except req_exceptions.RequestException as e:
+                raise req_exceptions.RequestException(
+                    f"Failed to get movie data from {endpoint}: {e}"
+                )
 
         raise ValueError("Could not find API endpointing containing the 'allMovie' key")
 
-    def _get_movie_nodes(self) -> list:
-        """
-        Get list of nodes from movie_data
+    def _get_movie_nodes(self) -> list[dict]:
+        """Get list of movies nodes.
+
+        Returns:
+            nodes: A list containing nodes for each movie
+                currently listed on the theater website
         """
 
         _, data = self.movie_data
-        return data["allMovie"]["nodes"]
+        nodes = data["nodes"]
+        return nodes
 
-    def _get_movie_ids(self) -> list:
-        """
-        Get movie ID from each node and return them all in a list
+    def _get_movie_ids(self) -> list[str]:
+        """Get list of movie IDs from movie nodes.
+
+        Returns:
+            ids: A list of IDs representing all movies currently
+                listed on the theater website
         """
 
-        return [node.get("id") for node in self.movie_nodes]
+        ids = [node.get("id") for node in self.movie_nodes]
+        return ids
 
-    def print_movies(self) -> None:
-        """
-        Print movie data
-        """
+    def print_movie_titles(self) -> None:
+        """Print movie titles, each separated by a newline"""
 
         if self.movie_nodes is None:
             raise ValueError("Cannot print movie data if movie_nodes is None")
@@ -179,46 +193,59 @@ class TheaterScraper:
         for title in movie_titles:
             print(title)
 
-    def _get_theater_schedule(self) -> list:
-        """
-        Create post request for theater schedule and return the value
-        of the schedule key.
+    def get_schedule(self) -> list[dict]:
+        """Get current schedule for theater.
+
+        Make a POST request to the schedule_endpoint using today's
+        date and the movie IDs found in the current endpoint containing
+        movie data.
+
+        Returns:
+            schedule: A list of unparsed showings, as provided by the
+                Boxoffice CMS API
         """
 
+        config = self.theater_config
+
         today = datetime.today()
-        today_next_year = today + relativedelta(years=1)
+        today_next_year = today + date_delta.relativedelta(years=1)
 
         body = {
             "theaters": [
                 {
-                    "id": self.theater_config.theater_id,
+                    "id": config.theater_id,
                     "timeZone": "America/Los_Angeles",
                 }
             ],
             "movieIds": self.movie_ids,
             "from": today.isoformat(),
             "to": today_next_year.isoformat(),
-            "websiteId": self.theater_config.website_id,
+            "websiteId": config.website_id,
         }
 
-        response = requests.post(self.theater_config.schedule_endpoint, json=body)
-        response.raise_for_status()
-        schedule = (
-            response.json().get(self.theater_config.theater_id, {}).get("schedule")
-        )
-
-        if schedule is None:
-            raise ValueError(
-                "Response from schedule endpoint was successful, but schedule data could not be found"
+        try:
+            response = requests.post(config.schedule_endpoint, json=body, timeout=30)
+            response.raise_for_status()
+            schedule = (
+                response.json().get(config.theater_id, {}).get("schedule")
             )
 
-        return schedule
+            if schedule is None:
+                raise ValueError(
+                    "Response from schedule endpoint was successful, but schedule data could not be found"
+                )
 
-    def print_schedule(self) -> None:
-        print(self.movie_schedule)
+            return schedule
+
+        except req_exceptions.RequestException as e:
+            raise req_exceptions.RequestException(
+                f"Failed to get schedule from {config.schedule_endpoint}: {e}"
+            )
 
 
 def main():
     onyx_config = TheaterConfig.from_env("env/onyx.env")
     onyx_scraper = TheaterScraper(onyx_config)
-    onyx_scraper.print_schedule()
+
+    schedule = onyx_scraper.get_schedule()
+    print(schedule)
