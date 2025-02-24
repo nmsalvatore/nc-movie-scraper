@@ -90,10 +90,10 @@ class TheaterConfig:
             )
 
         return cls(
-            showtimes_url=os.getenv("SHOWTIMES_URL", ""),
-            website_id=os.getenv("WEBSITE_ID", ""),
-            theater_id=os.getenv("THEATER_ID", ""),
-            schedule_endpoint=os.getenv("SCHEDULE_ENDPOINT", ""),
+            showtimes_url=os.environ["SHOWTIMES_URL"],
+            website_id=os.environ["WEBSITE_ID"],
+            theater_id=os.environ["THEATER_ID"],
+            schedule_endpoint=os.environ["SCHEDULE_ENDPOINT"],
         )
 
 
@@ -224,9 +224,7 @@ class TheaterScraper:
         try:
             response = requests.post(config.schedule_endpoint, json=body, timeout=30)
             response.raise_for_status()
-            schedule = (
-                response.json().get(config.theater_id, {}).get("schedule")
-            )
+            schedule = response.json().get(config.theater_id, {}).get("schedule")
 
             if schedule is None:
                 raise ValueError(
