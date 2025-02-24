@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from typing import Sequence
 
 import dotenv
 import requests
@@ -50,6 +51,7 @@ class TheaterConfig:
             theater_id: Theater ID used by Boxoffice CMS
             schedule_endpoint: API endpoint holding movie schedule data
         """
+
         self.showtimes_url = showtimes_url
         self.website_id = website_id
         self.theater_id = theater_id
@@ -157,30 +159,28 @@ class TheaterScraper:
                     f"Failed to get movie data from {endpoint}: {e}"
                 )
 
-        raise ValueError("Could not find API endpointing containing the 'allMovie' key")
+        raise ValueError("Could not find API endpoint containing the 'allMovie' key")
 
-    def _get_movie_nodes(self) -> list[dict]:
+    def _get_movie_nodes(self) -> Sequence[dict]:
         """Get list of movies nodes.
 
         Returns:
-            nodes: A list containing nodes for each movie
-                currently listed on the theater website
+            A list containing nodes for each movie currently listed on
+                the theater website
         """
 
         _, data = self.movie_data
-        nodes = data["nodes"]
-        return nodes
+        return data["nodes"]
 
-    def _get_movie_ids(self) -> list[str]:
+    def _get_movie_ids(self) -> Sequence[str]:
         """Get list of movie IDs from movie nodes.
 
         Returns:
-            ids: A list of IDs representing all movies currently
-                listed on the theater website
+            A list of IDs for all movies currently listed on the
+                theater website
         """
 
-        ids = [node.get("id") for node in self.movie_nodes]
-        return ids
+        return [node["id"] for node in self.movie_nodes]
 
     def print_movie_titles(self) -> None:
         """Print movie titles, each separated by a newline"""
@@ -188,12 +188,10 @@ class TheaterScraper:
         if self.movie_nodes is None:
             raise ValueError("Cannot print movie data if movie_nodes is None")
 
-        movie_titles = [movie.get("title") for movie in self.movie_nodes]
+        for movie in self.movie_nodes:
+            print(movie["title"])
 
-        for title in movie_titles:
-            print(title)
-
-    def get_schedule(self) -> list[dict]:
+    def get_schedule(self) -> Sequence[dict]:
         """Get current schedule for theater.
 
         Make a POST request to the schedule_endpoint using today's
