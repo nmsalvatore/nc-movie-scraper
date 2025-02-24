@@ -50,6 +50,7 @@ class TheaterConfig:
             theater_id: Theater ID used by Boxoffice CMS
             schedule_endpoint: API endpoint holding movie schedule data
         """
+
         self.showtimes_url = showtimes_url
         self.website_id = website_id
         self.theater_id = theater_id
